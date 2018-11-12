@@ -42,6 +42,7 @@ public class SimpleHttp2Client
     private HttpServerExchange _exchange = null;
     private boolean _propagateToken = false;
     private boolean _addToken = false;
+    private boolean _disableToken = false;
     private boolean _hasConnected = false;
     private String _url;
     private boolean _enableHttp2;
@@ -87,7 +88,8 @@ public class SimpleHttp2Client
     private static final String _errSecurity =
         "Unable to propagate token. You must either:\n" +
         "\t(1) use SimpleHttp2Client.propagateToken(HttpServerExchange) to enable propagation, or\n" +
-        "\t(2) use SimpleHttp2Client.addToken() to acquire a new token based on configuration in client.yml\n";
+        "\t(2) use SimpleHttp2Client.addToken() to acquire a new token based on configuration in client.yml\n" +
+        "\t(3) use SimpleHttp2Client.disableToken() to disable both token propagation and token creation\n";
 
     public SimpleHttp2Client() {
         _client = Http2Client.getInstance();
@@ -108,7 +110,7 @@ public class SimpleHttp2Client
                 Http2Client.WORKER,
                 Http2Client.SSL,
                 Http2Client.BUFFER_POOL,
-                _addToken ?
+                _enableHttp2 ?
                     OptionMap.create(UndertowOptions.ENABLE_HTTP2, _enableHttp2) :
                     OptionMap.EMPTY
             ).get();
@@ -131,16 +133,17 @@ public class SimpleHttp2Client
 
         request.getRequestHeaders().add(Headers.HOST, uri.getHost() + ":" + uri.getPort());
 
-        if(_addToken)
-            _client.addCcToken(request);
-        else {
-            if(_exchange == null) {
-                if(_logger.isDebugEnabled())
-                    _logger.warn("\n\n* WARNING * " + _errSecurity);
+        if(!_disableToken)
+            if(_addToken)
+                _client.addCcToken(request);
+            else {
+                if(_exchange == null) {
+                    if(_logger.isDebugEnabled())
+                        _logger.warn("\n\n* WARNING * " + _errSecurity);
+                }
+                else
+                    _client.propagateHeaders(request, _exchange);
             }
-            else
-                _client.propagateHeaders(request, _exchange);
-        }
 
         // Send the request
         connection.sendRequest(request, _client.createClientCallback(reference, latch));
@@ -251,6 +254,11 @@ public class SimpleHttp2Client
 
     public String getStatusMessage() {
         return StatusCodes.getReason(getStatusCode());
+    }
+
+    public SimpleHttp2Client disableToken() {
+        _disableToken = true;
+        return this;
     }
 
     public SimpleHttp2Client addToken() {

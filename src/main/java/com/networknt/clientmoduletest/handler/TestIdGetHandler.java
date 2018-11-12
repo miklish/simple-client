@@ -128,6 +128,7 @@ public class TestIdGetHandler implements LightHttpHandler
         // Direct connection
         SimpleHttp2Client client1 = new SimpleHttp2Client()
             .enableHttp2()
+            .disableToken()
             .setTimeoutMs(10000)
             .setUrl("https://jsonplaceholder.typicode.com/todos/" + id)
             .connect();
@@ -135,6 +136,7 @@ public class TestIdGetHandler implements LightHttpHandler
         // Connection via Service Registry
         SimpleHttp2Client client = new SimpleHttp2Client()
             .enableHttp2()
+            .disableToken()
             .setTimeoutMs(10000)
             .setSericeId("free-api")
             .setServiceProtocol("https")
