@@ -1,11 +1,13 @@
 package com.networknt.clientmoduletest.com.networknt.simpleclient;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.balance.LoadBalance;
 import com.networknt.client.Http2Client;
 import com.networknt.cluster.Cluster;
 import com.networknt.config.Config;
-import com.networknt.security.JwtHelper;
 import com.networknt.service.SingletonServiceFactory;
 import io.undertow.UndertowOptions;
 import io.undertow.client.ClientConnection;
@@ -15,10 +17,12 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
+import io.undertow.util.StatusCodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.OptionMap;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -49,9 +53,11 @@ public class SimpleHttp2Client
     private String _serviceTag = null;
     private String _serviceRequestKey = null;
 
+    /*
     private static final String SECURITY_CONFIG_NAME = "security";
     private static final Map<String, Object> _securityConfig =
         Config.getInstance().getJsonMapConfig(SECURITY_CONFIG_NAME);
+    */
     private int _statusCode = 0;
 
     private static boolean _loadBalancerAvailable = false;
@@ -77,6 +83,11 @@ public class SimpleHttp2Client
         "\t  - com.networknt.cluster.Cluster:\n" +
         "\t    - com.networknt.cluster.LightCluster\n" +
         "\n";
+
+    private static final String _errSecurity =
+        "Unable to propagate token. You must either:\n" +
+        "\t(1) use SimpleHttp2Client.propagateToken(HttpServerExchange) to enable propagation, or\n" +
+        "\t(2) use SimpleHttp2Client.addToken() to acquire a new token based on configuration in client.yml\n";
 
     public SimpleHttp2Client() {
         _client = Http2Client.getInstance();
@@ -116,14 +127,20 @@ public class SimpleHttp2Client
                 .setPath(path + query)
                 .setMethod(_scheme);
 
-        _logger.info("Peer Address: {}", connection.getPeerAddress());
+        if(_logger.isDebugEnabled()) _logger.info("Peer Address: {}", connection.getPeerAddress());
 
         request.getRequestHeaders().add(Headers.HOST, uri.getHost() + ":" + uri.getPort());
 
         if(_addToken)
             _client.addCcToken(request);
-        else
-            _client.propagateHeaders(request, _exchange);
+        else {
+            if(_exchange == null) {
+                if(_logger.isDebugEnabled())
+                    _logger.warn("\n\n* WARNING * " + _errSecurity);
+            }
+            else
+                _client.propagateHeaders(request, _exchange);
+        }
 
         // Send the request
         connection.sendRequest(request, _client.createClientCallback(reference, latch));
@@ -138,8 +155,7 @@ public class SimpleHttp2Client
             }
         } catch(InterruptedException e) {
             String err = "Thread interrupted while waiting for response:\n" + e.getMessage();
-            if (!_logger.isDebugEnabled())
-                _logger.info(err);
+            if (!_logger.isDebugEnabled()) _logger.error(err);
             throw new RuntimeException(err);
         }
 
@@ -147,14 +163,47 @@ public class SimpleHttp2Client
         _response = reference.get();
 
         if(_response == null) {
-            _logger.info("No response");
+            if(_logger.isDebugEnabled()) _logger.info("No response");
             return this;
         }
 
         _statusCode = _response.getResponseCode();
-        _logger.info("Status Code: {}", _statusCode);
+        if(_logger.isDebugEnabled()) _logger.info("Status Code: {}", _statusCode);
         _responseBody = _response.getAttachment(Http2Client.RESPONSE_BODY);
         return this;
+    }
+
+    public Object toObject(Class respClass) throws
+        JsonMappingException, JsonParseException, IOException
+    {
+        if(_hasConnected || _responseBody != null) {
+            return getMapper().readValue(getResponseBody(), respClass);
+        }
+        else {
+            if(_logger.isDebugEnabled()) {
+                if(!_hasConnected) _logger.error("Cannot return response object as no connection was made");
+                if(_responseBody  == null) _logger.error("Cannot return response object as response body was empty");
+            }
+            return null;
+        }
+    }
+
+    public Map<String, Object> toMap() throws
+        JsonMappingException, JsonParseException, IOException
+    {
+        if(_hasConnected || _responseBody != null) {
+            return getMapper().readValue(
+                       getResponseBody(),
+                        new TypeReference<Map<String,Object>>(){}
+                   );
+        }
+        else {
+            if (_logger.isDebugEnabled()) {
+                if (!_hasConnected) _logger.error("Cannot return response map as no connection was made");
+                if (_responseBody == null) _logger.error("Cannot return response map as response body was empty");
+            }
+            return null;
+        }
     }
 
     public SimpleHttp2Client setServiceProtocol(String serviceProtocol) {
@@ -195,9 +244,13 @@ public class SimpleHttp2Client
 
     public int getStatusCode() {
         if(_response == null)
-            return 504;
+            return StatusCodes.GATEWAY_TIME_OUT;
         else
             return _response.getResponseCode();
+    }
+
+    public String getStatusMessage() {
+        return StatusCodes.getReason(getStatusCode());
     }
 
     public SimpleHttp2Client addToken() {
@@ -236,7 +289,7 @@ public class SimpleHttp2Client
                 "\n\n" +
                 (!_loadBalancerAvailable ? _errLoadBalancer : "") +
                 (!_clusterAvailable ? _errCluster : "");
-            _logger.info(err);
+            if(_logger.isDebugEnabled()) _logger.error(err);
             throw new ExceptionInInitializerError(err);
         }
 

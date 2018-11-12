@@ -148,21 +148,18 @@ public class TestIdGetHandler implements LightHttpHandler
             return;
         }
 
-        if(client.getStatusCode() != 200) {
-            logger.info("Error response {}", client.getStatusCode());
+        logger.info("Error response {}", client.getStatusMessage());
+        if(client.getStatusCode() != 200)
             return;
-        }
 
         // Load data into User object
-        User user = client.getMapper().readValue(client.getResponseBody(), User.class);
+        User user = (User) client.toObject(User.class);
+
         logger.info("user.getTitle() = {}", user.getTitle());
 
         // Or read as a Map
-        Map<String, Object> userMap =
-            client.getMapper().readValue(
-                    client.getResponseBody(),
-                    new TypeReference<Map<String,Object>>(){}
-            );
+        Map<String, Object> userMap = client.toMap();
+
         logger.info("userMap.get(title) = {}", userMap.get("title").toString());
 
         exchange.endExchange();
