@@ -148,7 +148,7 @@ public class TestIdGetHandler implements LightHttpHandler
             return;
         }
 
-        logger.info("Error response {}", client.getStatusMessage());
+        logger.info("HTTP response: {}", client.getStatusMessage());
         if(client.getStatusCode() != 200)
             return;
 

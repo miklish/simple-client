@@ -48,8 +48,9 @@ public class TestIdGetHandlerTest {
         }
         final AtomicReference<ClientResponse> reference = new AtomicReference<>();
         try {
-            ClientRequest request = new ClientRequest().setPath("/v1/test/id").setMethod(Methods.GET);
-            
+            ClientRequest request = new ClientRequest().setPath("/v1/test/1").setMethod(Methods.GET);
+            request.getRequestHeaders().add(Headers.HOST, url);
+
             connection.sendRequest(request, client.createClientCallback(reference, latch));
             
             latch.await();
