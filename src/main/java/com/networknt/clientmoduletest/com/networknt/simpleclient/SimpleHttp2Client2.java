@@ -8,6 +8,8 @@ import com.networknt.balance.LoadBalance;
 import com.networknt.client.Http2Client;
 import com.networknt.cluster.Cluster;
 import com.networknt.config.Config;
+import com.networknt.exception.ApiException;
+import com.networknt.exception.ClientException;
 import com.networknt.service.SingletonServiceFactory;
 import io.undertow.UndertowOptions;
 import io.undertow.client.ClientConnection;
@@ -26,9 +28,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class SimpleHttp2Client
+public class SimpleHttp2Client2
 {
-    private Logger _logger = LoggerFactory.getLogger(SimpleHttp2Client.class);
+    private Logger _logger = LoggerFactory.getLogger(SimpleHttp2Client2.class);
     private Http2Client _client;
     private String _responseBody = null;
     private ClientResponse _response = null;
@@ -92,14 +94,14 @@ public class SimpleHttp2Client
         "\t(2) use SimpleHttp2Client.addToken() to acquire a new token based on configuration in client.yml\n" +
         "\t(3) use SimpleHttp2Client.disableToken() to disable both token propagation and token creation\n";
 
-    public SimpleHttp2Client() {
+    public SimpleHttp2Client2() {
         _client = Http2Client.getInstance();
     }
 
-    public SimpleHttp2Client connect()
+    public SimpleHttp2Client2 connect()
         throws
             java.net.URISyntaxException,
-            java.io.IOException,
+            IOException,
             com.networknt.exception.ApiException,
             com.networknt.exception.ClientException
     {
@@ -116,6 +118,14 @@ public class SimpleHttp2Client
                     OptionMap.EMPTY
             ).get();
 
+        executeRequest(uri, connection);
+        executeRequest(uri, connection);
+        return this;
+    }
+
+    private void executeRequest(URI uri, ClientConnection connection)
+            throws ClientException, ApiException
+    {
         // Get a reference to the response
         final AtomicReference<ClientResponse> reference = new AtomicReference<>();
         // We only expect one response, so close the latch after it's received.
@@ -169,13 +179,12 @@ public class SimpleHttp2Client
 
         if(_response == null) {
             if(_logger.isDebugEnabled()) _logger.info("No response");
-            return this;
+            return;
         }
 
         _statusCode = _response.getResponseCode();
         if(_logger.isDebugEnabled()) _logger.info("Status Code: {}", _statusCode);
         _responseBody = _response.getAttachment(Http2Client.RESPONSE_BODY);
-        return this;
     }
 
     public Object toObject(Class respClass) throws
@@ -211,22 +220,22 @@ public class SimpleHttp2Client
         }
     }
 
-    public SimpleHttp2Client setServiceProtocol(String serviceProtocol) {
+    public SimpleHttp2Client2 setServiceProtocol(String serviceProtocol) {
         _serviceProtocol = serviceProtocol;
         return this;
     }
 
-    public SimpleHttp2Client setSericeId(String serviceId) {
+    public SimpleHttp2Client2 setSericeId(String serviceId) {
         _serviceId = serviceId;
         return this;
     }
 
-    public SimpleHttp2Client setServiceTag(String serviceTag) {
+    public SimpleHttp2Client2 setServiceTag(String serviceTag) {
         _serviceTag = serviceTag;
         return this;
     }
 
-    public SimpleHttp2Client setServiceRequestKey(String serviceRequestKey) {
+    public SimpleHttp2Client2 setServiceRequestKey(String serviceRequestKey) {
         _serviceRequestKey = serviceRequestKey;
         return this;
     }
@@ -258,40 +267,40 @@ public class SimpleHttp2Client
         return StatusCodes.getReason(getStatusCode());
     }
 
-    public SimpleHttp2Client disableToken() {
+    public SimpleHttp2Client2 disableToken() {
         _disableToken = true;
         return this;
     }
 
-    public SimpleHttp2Client addToken() {
+    public SimpleHttp2Client2 addToken() {
         _addToken = true;
         _propagateToken = false;
         return this;
     }
 
-    public SimpleHttp2Client propagateToken(HttpServerExchange exchange) {
+    public SimpleHttp2Client2 propagateToken(HttpServerExchange exchange) {
         _exchange = exchange;
         _propagateToken = true;
         _addToken = false;
         return this;
     }
 
-    public SimpleHttp2Client setTimeoutMs(int timeoutMs) {
+    public SimpleHttp2Client2 setTimeoutMs(int timeoutMs) {
         _timeoutMs = timeoutMs;
         return this;
     }
 
-    public SimpleHttp2Client setUrl(String url) {
+    public SimpleHttp2Client2 setUrl(String url) {
         _url = url;
         return this;
     }
 
-    public SimpleHttp2Client enableHttp2() {
+    public SimpleHttp2Client2 enableHttp2() {
         _enableHttp2 = true;
         return this;
     }
 
-    public SimpleHttp2Client lookupConnect(String path)
+    public SimpleHttp2Client2 lookupConnect(String path)
             throws Exception
     {
         if(!_loadBalancerAvailable || !_clusterAvailable) {
@@ -307,19 +316,19 @@ public class SimpleHttp2Client
         return connect();
     }
 
-    public SimpleHttp2Client get() {
+    public SimpleHttp2Client2 get() {
         _scheme = Methods.GET;
         return this;
     }
-    public SimpleHttp2Client put() {
+    public SimpleHttp2Client2 put() {
         _scheme = Methods.PUT;
         return this;
     }
-    public SimpleHttp2Client post() {
+    public SimpleHttp2Client2 post() {
         _scheme = Methods.POST;
         return this;
     }
-    public SimpleHttp2Client delete() {
+    public SimpleHttp2Client2 delete() {
         _scheme = Methods.DELETE;
         return this;
     }
